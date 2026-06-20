@@ -1,0 +1,47 @@
+# systemd unit for the self-hosted Excalidraw storage server.
+#
+# Install:
+#   sudo cp deploy/excalidraw-storage.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now excalidraw-storage
+#   systemctl status excalidraw-storage
+#   journalctl -u excalidraw-storage -f      # live logs
+#
+# Adjust the paths/user below to match your server. Before first start, run
+# `npm install` inside the storage-server directory so express/cors are present.
+
+[Unit]
+Description=Excalidraw storage server (scenes, libraries, image/PDF files)
+After=network.target
+
+[Service]
+Type=simple
+# a dedicated, unprivileged user is recommended (sudo useradd -r -s /usr/sbin/nologin excalidraw)
+User=excalidraw
+Group=excalidraw
+
+# where server.js lives (copy or clone the storage-server here)
+WorkingDirectory=/opt/excalidraw/storage-server
+
+# Runs node via a stable symlink (same one used by the collab service), so
+# node upgrades don't require editing this unit. Create it once on the server:
+#   sudo ln -sf /opt/excalidraw/.nvm/versions/node/v24.16.0/bin/node /usr/local/bin/excalidraw-node
+ExecStart=/usr/local/bin/excalidraw-node server.js
+
+Environment=NODE_ENV=production
+Environment=PORT=3003
+# IMPORTANT: keep data OUTSIDE the repo on a persistent disk
+Environment=DATA_DIR=/var/lib/excalidraw-storage
+
+Restart=always
+RestartSec=5
+
+# basic hardening (data dir is the only path it must write to)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/excalidraw-storage
+
+[Install]
+WantedBy=multi-user.target

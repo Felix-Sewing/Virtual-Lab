@@ -1,0 +1,51 @@
+# systemd unit for the Excalidraw collaboration server (excalidraw-room).
+#
+# excalidraw-room is a separate project (socket.io message relay). Set it up once:
+#   git clone https://github.com/excalidraw/excalidraw-room /opt/excalidraw/excalidraw-room
+#   cd /opt/excalidraw/excalidraw-room
+#   yarn install && yarn build      # produces dist/
+#
+# Install the service:
+#   sudo cp deploy/excalidraw-collab.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now excalidraw-collab
+#   journalctl -u excalidraw-collab -f
+#
+# NOTE: it only relays encrypted collaboration messages between peers; the
+# actual scene/file persistence is handled by the storage server above.
+
+[Unit]
+Description=Excalidraw collaboration server (excalidraw-room, socket.io)
+After=network.target
+
+[Service]
+Type=simple
+User=excalidraw
+Group=excalidraw
+
+WorkingDirectory=/opt/excalidraw/excalidraw-room
+
+# Runs node via a stable symlink so node upgrades don't require editing this
+# unit. Create it once on the server (re-point it after an nvm upgrade):
+#   sudo ln -sf /opt/excalidraw/.nvm/versions/node/v24.16.0/bin/node /usr/local/bin/excalidraw-node
+# Entrypoint for excalidraw-room is dist/index.js.
+ExecStart=/usr/local/bin/excalidraw-node dist/index.js
+
+Environment=NODE_ENV=production
+Environment=PORT=3002
+
+Restart=always
+RestartSec=5
+
+# mirrors pm2's `max_memory_restart: 4G`. NOTE: pm2 restarts gracefully when
+# RSS exceeds this; systemd OOM-kills at the hard limit and then Restart=always
+# brings it back. Same goal (cap runaway memory), slightly harsher mechanism.
+MemoryMax=4G
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
